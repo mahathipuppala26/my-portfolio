@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
+
 const nodemailer = require('nodemailer');
 const cors = require('cors');
 
@@ -21,10 +22,19 @@ const publicDir = path.join(__dirname, 'public');
 app.use(express.static(publicDir));
 
 // Connect to MongoDB
-const mongoUri = process.env.MONGO_URI || '';
-mongoose.connect(mongoUri, { useNewUrlParser:true, useUnifiedTopology:true })
-  .then(()=>console.log('MongoDB connected'))
-  .catch(err=>console.error('MongoDB connection error', err));
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log("Connected to MongoDB Atlas"))
+.catch(err => console.error("MongoDB connection error:", err));
+
+
+
 
 // POST /api/contact
 app.post('/api/contact', async (req, res) => {
