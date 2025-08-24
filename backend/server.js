@@ -1,81 +1,85 @@
+// server.js
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
-
 const nodemailer = require('nodemailer');
 const cors = require('cors');
-
-
-
+const fs = require('fs');
 
 const Message = require('./Models/Message');
 
 const app = express();
 
-// Basic middleware
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Serve frontend if placed inside backend/public
+// Serve frontend from public folder
 const publicDir = path.join(__dirname, 'public');
 app.use(express.static(publicDir));
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+// Connect to MongoDB Atlas
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log("Connected to MongoDB Atlas"))
-.catch(err => console.error("MongoDB connection error:", err));
+.then(() => console.log("✅ Connected to MongoDB Atlas"))
+.catch(err => console.error("❌ MongoDB connection error:", err));
 
-document.getElementById("contact-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
 
-  const name = document.getElementById("name").value.trim();
-  const email = document.getElementById("email").value.trim();
-  const message = document.getElementById("message").value.trim();
+// POST /api/contact (save message + send email)
+app.post('/api/contact', async (req, res) => {
+  const { name, email, subject, message } = req.body;
+
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ error: "Please provide name, email, subject, and message." });
+  }
 
   try {
-    const response = await fetch(`/api/contact`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name, email, message }),
+    // Save to MongoDB
+    const doc = new Message({ name, email, subject, message });
+    await doc.save();
+
+    // Send email notification
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT) || 587,
+      secure: process.env.EMAIL_SECURE === 'true',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
     });
 
-    const result = await response.json();
-    if (result.ok) {
-      alert("Message sent successfully!");
-      e.target.reset();
-    } else {
-      alert("Error: " + (result.error || "Something went wrong."));
-    }
+    const mailOptions = {
+      from: `Portfolio Contact <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_TO || process.env.EMAIL_USER,
+      subject: `New Contact: ${subject} from ${name}`,
+      text: `You received a new message:\n\nFrom: ${name} (${email})\nSubject: ${subject}\n\nMessage:\n${message}`
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return res.json({ ok: true });
   } catch (err) {
-    console.error("Network error:", err);
-    alert("Network error. Please try again later.");
+    console.error("Error in /api/contact:", err);
+    return res.status(500).json({ error: "Server error — please try again later." });
   }
 });
-// (Optional) simple GET to check server status
+
+// Health check
 app.get('/api/ping', (req, res) => res.json({ ok: true, time: new Date() }));
 
-// fallback to index.html for other routes if frontend is served from backend/public
+// Fallback: serve index.html
 app.get('*', (req, res) => {
   const indexPath = path.join(publicDir, 'index.html');
-  if (req.method === 'GET' && fsExists(indexPath)) return res.sendFile(indexPath);
-  return res.status(404).json({ error: 'Not found' });
+  if (req.method === 'GET' && fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  return res.status(404).json({ error: "Not found" });
 });
 
-// helper to check fs exists synchronously (small util)
-const fs = require('fs');
-function fsExists(p) {
-  try { return fs.existsSync(p); } catch { return false; }
-}
-
+// Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, ()=>console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
