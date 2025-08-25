@@ -49,7 +49,7 @@ const messageSchema = new mongoose.Schema({
   }
 });
 
-// Index for faster queries
+
 messageSchema.index({ createdAt: -1 });
 messageSchema.index({ email: 1 });
 
